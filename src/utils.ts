@@ -1,7 +1,7 @@
 import Papa, { type ParseResult } from "papaparse";
 
 export const parseSVCFileToJSON = <T>(file: File, config?: Partial<Papa.ParseLocalConfig<T, File>>): Promise<ParseResult<T>> => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     Papa.parse(file, {
       ...config,
       skipEmptyLines: "greedy",
@@ -9,7 +9,7 @@ export const parseSVCFileToJSON = <T>(file: File, config?: Partial<Papa.ParseLoc
         console.log(results)
         resolve(results)
       },
-      error: (error) => {
+      error: (_error) => {
         console.log("Error in Papa parse");
       }
     })

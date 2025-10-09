@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import type { Employee } from '../types';
 import { parseSVCFileToJSON } from '../utils';
 
 const { handleFile, svcConfig } = defineProps<{ handleFile: (value: any) => void, svcConfig?: Partial<Papa.ParseLocalConfig<any, File>> }>()
