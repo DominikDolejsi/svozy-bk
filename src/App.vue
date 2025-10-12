@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, type Ref } from 'vue';
 import UploadFile from './components/UploadFile.vue';
-import type { Employee, ShiftFile } from './types';
+import type { Employee, Shift } from './types';
 
 // logic for showing an hiding components
 // Here is STATE - which mean the data that we contorll
@@ -18,13 +18,89 @@ import type { Employee, ShiftFile } from './types';
 // you will endup with arrays of people that have all the dates with shifts to them
 // Then use those two datasets to create final tracks
 
+const handleRawShiftData = (rawShiftData: string[][]) => {
+  const westStartLineIndex = rawShiftData.findIndex((line) => {
+    if (line.length > 0) {
+      return line[0]?.toLowerCase().includes("west")
+    }
+  })
+
+  const eastStartLineIndex = rawShiftData.findIndex((line) => {
+    if (line.length > 0) {
+      return line[0]?.toLowerCase().includes("east")
+    }
+  })
+
+  const shiftData: Shift[] = []
+
+  const eastHeaderLine = rawShiftData[eastStartLineIndex + 1]
+  const westHeaderLine = rawShiftData[westStartLineIndex + 1]
+  if (!eastHeaderLine?.length) return
+  if (!westHeaderLine?.length) return
+
+  for (let index = eastStartLineIndex + 2; index < rawShiftData.length; index++) {
+    const element = rawShiftData[index];
+
+    if (!element?.length) return
+    if (!(element.length > 0)) return
+    if (!element[0]) return
+
+    if (element[0].toLowerCase().includes("celkem")) break
+
+    const shift: Shift = {
+      name: element[0],
+      shift: "east",
+    }
+
+    element.forEach((item, index) => {
+      if (!item) return
+      if (index === 0) return
+      shift[eastHeaderLine[index] ?? "unknownField"] = item
+    })
+
+    shiftData.push(shift)
+
+  }
+
+  for (let index = westStartLineIndex + 2; index < rawShiftData.length; index++) {
+    const element = rawShiftData[index];
+
+    if (!element?.length) return
+    if (!(element.length > 0)) return
+    if (!element[0]) return
+
+    if (element[0].toLowerCase().includes("celkem")) break
+
+    const shift: Shift = {
+      name: element[0],
+      shift: "west",
+    }
+
+    element.forEach((item, index) => {
+      if (!item) return
+      if (index === 0) return
+      shift[westHeaderLine[index] ?? "unknownField"] = item
+    })
+
+    shiftData.push(shift)
+
+  }
+
+  console.log("ParsedShift", shiftData)
+
+
+
+
+}
+
+
 // Tracks function will take both data, based on that it woull create groups with same shift
 // in those shifts it would based on combination of towns create one or many trips
 // THe combination of towns is pivotal !!
 // Another shift would get
 
 const employees: Ref<[] | Employee[]> = ref([])
-const shifts: Ref<[] | ShiftFile[]> = ref([])
+// const shifts: Ref<[] | Shift[]> = ref([])
 
 const employeeConfig: Partial<Papa.ParseLocalConfig<any, File>> = {
   header: true,
@@ -47,8 +123,10 @@ const assignEmployees = (newEmployees: Employee[]) => {
   employees.value = newEmployees
 }
 
-const assignShifts = (newShifts: Employee[]) => {
-  shifts.value = newShifts
+const assignShifts = (newShifts: string[][]) => {
+  console.log("newShifts", newShifts)
+  handleRawShiftData(newShifts)
+  // shifts.value = newShifts
 }
 
 
@@ -56,8 +134,8 @@ const assignShifts = (newShifts: Employee[]) => {
 </script>
 
 <template>
-  <UploadFile v-if="true" :handle-file="assignEmployees" :svc-config="employeeConfig"/>
-  <UploadFile v-if="false" :handle-file="assignShifts" :svc-config="shiftConfig"/>
+  <UploadFile v-if="true" :handle-file="assignEmployees" label-text="Upload Employee File" :svc-config="employeeConfig" />
+  <UploadFile v-if="true" :handle-file="assignShifts" label-text="Upload Shift File" :svc-config="shiftConfig" />
 </template>
 
 <style scoped></style>
