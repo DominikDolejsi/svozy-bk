@@ -1,23 +1,47 @@
 <script lang="ts" setup>
+import type { ParseResult } from 'papaparse';
 import { parseSVCFileToJSON } from '../utils';
+import { ref } from 'vue';
 
-const { handleFile, svcConfig, labelText } = defineProps<{ handleFile: (value: any) => void, labelText: string ,svcConfig?: Partial<Papa.ParseLocalConfig<any, File>> }>()
+const { scvConfig, labelText } = defineProps<{ labelText: string, scvConfig?: Partial<Papa.ParseLocalConfig<any, File>> }>()
 
+const emit = defineEmits<{
+  (e: "data-loaded", data: ParseResult<any>): void
+  (e: "error", error: string): void
+}>()
 
+const error = ref<string>("")
+const loading = ref<boolean>(false)
 
 const handleFileChange = async (event: Event) => {
-  console.log(event.target)
+  // type guards
   if (event.target === null) return
   if (!(event.target instanceof HTMLInputElement)) return
+
+  // accessing file in input
   const target: HTMLInputElement = event.target as HTMLInputElement
-
   if (!target.files?.length) return
+  const file = target.files?.[0]
+  if (!file) return
 
-  const data = await parseSVCFileToJSON(target.files[0]!, svcConfig)
+  if (!file.name.endsWith('.csv')) {
+    error.value = 'Please select a CSV file';
+    emit('error', error.value);
+    return;
+  }
 
+  error.value = ""
+  loading.value = true
 
-  handleFile(data.data)
-
+  try {
+    const data = await parseSVCFileToJSON(file, scvConfig)
+    emit("data-loaded", data)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Error reading file"
+    emit("error", error.value)
+  } finally {
+    loading.value = false
+  }
 }
 
 </script>
@@ -52,11 +76,10 @@ const handleFileChange = async (event: Event) => {
   height: 100px;
   content: "Upload File";
   cursor: pointer;
-  border: 1px solid black ;
+  border: 1px solid black;
 }
 
 .upload-input::file-selector-button:active {
   background-color: black;
 }
-
 </style>
