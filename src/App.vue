@@ -1,110 +1,24 @@
 <script setup lang="ts">
-import { ref, type Ref } from 'vue';
+import { ref } from 'vue';
 import UploadFile from './components/UploadFile.vue';
-import { SHIFT_TIME, TOWN, type Employee, type Shift, type Town } from './types';
+import { EMPLOYEE_TABLE_HEADERS, TABLE_IDENTIFICATORS, type Employee, type JoinedTableEmployee, type Shift, type ShiftEmployee, type Town, type WorkShift } from './types';
 import type { ParseResult } from 'papaparse';
-import { mapToTown } from './utils';
+import { filterEmptyEmployees, findBranchIndexes, getBranchName, isAllowedShiftTime, joinTableData, parseWhatsAppValue } from './utils';
 
 
 const error = ref<string>("")
 
 
-let employees: [] | Employee[] = []
-const shiftData: Shift[] = []
-const shifts: Ref<[] | Shift[]> = ref([])
-let shiftDays: string[] | undefined;
-
 // New DATA STRUCTURE
 
-type JoinedTableData = {
-  name: string,
-  branch: string,
-  town: Town,
-  [key: string]: string
-}
-
-type WorkShift = {
-  day: string,
-  time: string,
-  workers: string[],
-  towns: Town[]
-}
-
 let employeeTableData: Employee[] = []
-let shiftTableData: Shift[] = []
-const joinedTableData: JoinedTableData[] = []
+let rawShiftTableData: string[][] = []
+let shiftEmployeeData: ShiftEmployee[] = []
+let joinedTableData: JoinedTableEmployee[] = []
 const workShifts: WorkShift[] = []
 const rides = ref<Ride[]>([])
 
-const joinTableData = () => {
-  shiftTableData.forEach((shift) => {
-    const town = employeeTableData.find((employee) => employee.name === shift.name)?.town
-    if (!town) return
-
-    const newData: JoinedTableData = {
-      ...shift,
-      branch: shift.branch.toUpperCase(),
-      town: mapToTown(town),
-    }
-
-    joinedTableData.push(newData)
-  })
-  console.log("joined", joinedTableData)
-}
-
-const createWorkShift = () => {
-  joinedTableData.forEach((item) => {
-    const { branch, name, town, ...rest } = item
-
-    if (!rest) return
-
-    Object.keys(rest).forEach((day) => {
-      if (!rest[day]) return
-
-      // check if time is morning or afternoon shift
-      // if not check if exception acceptible
-      // if than handle excpetion with alert
-      // otherwise throw away shift
-      const isMorningShiftTime = (time: string) => {
-        if (time.includes("06:00-15:30")) return true
-        return false
-      }
-      const isAfternoonShiftTime = (time: string) => {
-        if (time.includes("15:00-24:00")) return true
-        return false
-      }
-
-      const isAllowedShiftTime = (time: string, allowedTime: string[] = [SHIFT_TIME.MORNING, SHIFT_TIME.AFTERNOON]) => {
-        if (allowedTime.includes(time)) return true
-        return false
-      }
-
-      if (!isAllowedShiftTime(rest[day])) return
-
-
-      const workShift = workShifts.find((shift) => shift.day === day && shift.time === rest[day])
-      if (workShift) {
-        workShift.workers.push(name)
-
-        if (!workShift.towns.includes(town)) {
-          workShift.towns.push(town)
-        }
-        return
-      }
-
-      const newWorkShift: WorkShift = {
-        day: day,
-        time: rest[day],
-        workers: [name],
-        towns: [town],
-      }
-
-      workShifts.push(newWorkShift)
-    })
-  })
-
-  console.log("WorkShifts", workShifts)
-}
+const parseJoinedData = (joinedData: JoinedTableEmployee[]) => {}
 
 type TownConfig = {
   name: Town,
@@ -160,7 +74,7 @@ const createRides = () => {
       console.log("peopleInTrack", peopleInTrack)
       console.log("peopleNames", peopleNames)
 
-      const peopleBranch = peopleInTrack.map((item) => item.branch)
+      const peopleBranch = peopleInTrack.map((item) => item.shiftBranch)
 
       peopleBranch.forEach((branch) => {
         if (track.includes(branch)) return
@@ -182,7 +96,7 @@ const createRides = () => {
 }
 
 const resolveTracks = (townPool: Town[]): Track[] | void => {
-  const townPoolCopy = [ ...townPool ]
+  const townPoolCopy = [...townPool]
   const tracks: Track[] = []
   if (townPoolCopy.length === 0) return
 
@@ -249,82 +163,87 @@ const resolveTracks = (townPool: Town[]): Track[] | void => {
   return tracks
 }
 
-const handleRawShiftData = (rawShiftData: string[][]) => {
-  const westStartLineIndex = rawShiftData.findIndex((line) => {
-    if (line.length > 0) {
-      return line[0]?.toLowerCase().includes("west")
-    }
+const parseRawShiftTableData = (rawShiftTableData: string[][]) => {
+  const branchIndexes = findBranchIndexes(rawShiftTableData, TABLE_IDENTIFICATORS.BRANCH_LINE)
+
+  // function splitTableToBranches
+  const branchShifts: string[][][] = []
+  branchIndexes.forEach((branchIndex, index) => {
+    const branchShift = rawShiftTableData.slice(branchIndex, branchIndexes[index + 1])
+    const deepCopy = structuredClone(branchShift)
+
+    branchShifts.push(deepCopy)
   })
 
-  const eastStartLineIndex = rawShiftData.findIndex((line) => {
-    if (line.length > 0) {
-      return line[0]?.toLowerCase().includes("east")
-    }
+  const shiftEmployees: ShiftEmployee[] = []
+
+  branchShifts.forEach((branchShift) => {
+    const branchName = getBranchName(branchShift?.[0]?.[0] ?? "")
+    const branchShiftHeader = branchShift.find((line) => line.includes("jméno"))
+
+    // handle error branchName null
+    if (!branchName) return
+
+    // Handle errro branch header undefined
+    if (!branchShiftHeader || branchShiftHeader.length < 1) return
+
+    branchShift.forEach((line, lineIndex) => {
+      // ignore header and last line and branch denominator
+      const firstCell = line[0]
+
+      const linesToIgnore = [TABLE_IDENTIFICATORS.BRANCH_END, TABLE_IDENTIFICATORS.BRANCH_HEADER, TABLE_IDENTIFICATORS.BRANCH_IGNORE, TABLE_IDENTIFICATORS.BRANCH_LINE]
+
+      const hasIgnoreValue =linesToIgnore.some((ignoreValue) => firstCell?.includes(ignoreValue))
+
+      if (hasIgnoreValue) return
+
+      const shiftEmployee: Partial<ShiftEmployee> = {
+        name: undefined,
+        shiftBranch: undefined,
+        shifts: []
+      };
+
+      shiftEmployee.shiftBranch = branchName
+
+      line.forEach((cell, cellIndex) => {
+        const cellHeader = branchShiftHeader[cellIndex]
+        // handle cellHeader undefined
+        if (!cellHeader) return
+
+        if (cellHeader === "jméno") {
+          shiftEmployee.name = cell
+          return
+        }
+
+        // here I should parse the time
+        const parsedTimeCell = cell.slice(0, 11)
+        if (parsedTimeCell &&!isAllowedShiftTime(parsedTimeCell)) return
+
+
+        const shift: Shift = {
+          day: cellHeader,
+          time: parsedTimeCell,
+        }
+        shiftEmployee.shifts?.push(shift)
+      })
+
+      // validate employee
+      if (!shiftEmployee.name || !shiftEmployee.shiftBranch || !shiftEmployee.shifts) return
+
+      // if has no defined shift
+      if (shiftEmployee.shifts.every((shift) => !shift.time)) return
+
+      const validatedEmployee: ShiftEmployee = {
+        name: shiftEmployee.name,
+        shiftBranch: shiftEmployee.shiftBranch,
+        shifts: shiftEmployee.shifts
+      }
+
+      shiftEmployees.push(validatedEmployee)
+    })
   })
-
-  const eastHeaderLine = rawShiftData[eastStartLineIndex + 1]
-  const westHeaderLine = rawShiftData[westStartLineIndex + 1]
-
-  shiftDays = eastHeaderLine?.slice(1)
-
-  if (!eastHeaderLine?.length) return
-  if (!westHeaderLine?.length) return
-
-  for (let index = eastStartLineIndex + 2; index < rawShiftData.length; index++) {
-    const element = rawShiftData[index];
-
-    if (!element?.length) return
-    if (!(element.length > 0)) return
-    if (!element[0]) return
-
-    if (element[0].toLowerCase().includes("celkem")) break
-
-    const shift: Shift = {
-      name: element[0],
-      branch: "east",
-    }
-
-
-    element.forEach((item, index) => {
-      if (!item) return
-      if (index === 0) return
-      shift[eastHeaderLine[index] ?? "unknownField"] = item?.slice(0, 11)
-    })
-
-    shiftData.push(shift)
-
-  }
-
-  for (let index = westStartLineIndex + 2; index < rawShiftData.length; index++) {
-    const element = rawShiftData[index];
-
-    if (!element?.length) return
-    if (!(element.length > 0)) return
-    if (!element[0]) return
-
-    if (element[0].toLowerCase().includes("celkem")) break
-
-    const shift: Shift = {
-      name: element[0],
-      branch: "west",
-    }
-
-    element.forEach((item, index) => {
-      if (!item) return
-      if (index === 0) return
-      shift[westHeaderLine[index] ?? "unknownField"] = item?.slice(0, 11)
-    })
-
-    shiftData.push(shift)
-
-  }
-
-  shiftTableData = shiftData
-
-  console.log("ParsedShift", shiftData)
+  return shiftEmployees
 }
-
-
 
 
 // Tracks function will take both data, based on that it woull create groups with same shift
@@ -334,12 +253,26 @@ const handleRawShiftData = (rawShiftData: string[][]) => {
 
 const employeeConfig: Partial<Papa.ParseLocalConfig<any, File>> = {
   header: true,
-  transformHeader: (header, index) => {
-    if (index === 0) return "name"
-    if (index === 1) return "phone"
-    if (index === 2) return "town"
-    if (index === 3) return "branch"
+  transformHeader: (header, _index) => {
+    const normalizedHeader = header.toLowerCase().trim()
+
+    if (normalizedHeader === EMPLOYEE_TABLE_HEADERS.BRANCH) return "branch"
+    if (normalizedHeader === EMPLOYEE_TABLE_HEADERS.NAME) return "name"
+    if (normalizedHeader === EMPLOYEE_TABLE_HEADERS.PHONE) return "phone"
+    if (normalizedHeader === EMPLOYEE_TABLE_HEADERS.TOWN) return "town"
+    if (normalizedHeader === EMPLOYEE_TABLE_HEADERS.WHATSAPP) return "whatsapp"
+
     return header
+  },
+  transform: (value, header) => {
+    const normalized = value.trim().toLowerCase()
+
+    if (header === "whatsapp") {
+      return parseWhatsAppValue(normalized)
+    }
+
+    if (normalized) return normalized
+    return value
   },
   encoding: "utf-8",
 }
@@ -347,23 +280,44 @@ const employeeConfig: Partial<Papa.ParseLocalConfig<any, File>> = {
 const shiftConfig: Partial<Papa.ParseLocalConfig<any, File>> = {
   skipEmptyLines: true,
   encoding: "utf-8",
+  transform: (value) => {
+    const normalize = value.trim().toLowerCase()
+
+    if (normalize) return normalize
+    return value
+  }
 }
 
 const assignEmployees = (newEmployees: ParseResult<any>) => {
-  employees = newEmployees.data
-  employeeTableData = newEmployees.data
-  console.log("newEmployees", employees)
+  employeeTableData = filterEmptyEmployees(newEmployees.data)
 }
 
 const assignShifts = (newShifts: ParseResult<any>) => {
-  console.log("newShifts", newShifts)
-  handleRawShiftData(newShifts.data)
-  // shifts.value = newShifts
+  rawShiftTableData = newShifts.data
+  shiftEmployeeData = parseRawShiftTableData(newShifts.data)
 }
 
 const handleError = (err: string) => {
   error.value = err
 }
+
+const handleJoin = () => {
+  joinedTableData = joinTableData(shiftEmployeeData, employeeTableData)
+}
+
+const logIt = () => {
+  const data: Record<string, any> = {
+    employeeTableData: employeeTableData,
+    rawShiftTableData: rawShiftTableData,
+    shiftEmployeeData: shiftEmployeeData,
+    joinedTableData: joinedTableData,
+  }
+
+  Object.keys(data).forEach((key) => console.log(`${key}`, data[key]))
+
+}
+
+
 </script>
 
 <template>
@@ -372,12 +326,13 @@ const handleError = (err: string) => {
   <UploadFile v-if="true" @data-loaded="assignShifts" @error="handleError" label-text="Upload Shift File"
     :scv-config="shiftConfig" />
   <!-- <button @click="createRides">Calculate</button> -->
-  <button @click="joinTableData">Join</button>
-  <button @click="createWorkShift">Create Work Shifts</button>
+  <button @click="handleJoin">Join</button>
   <button @click="createRides">Create RIdes</button>
+  <button @click="logIt">Log It</button>
   <div>{{ error }}</div>
   <div v-for="(ride, index) in rides">
-    {{ "Svoz " + (index + 1) }} - {{ ride.day }} - {{ ride.startTime }} - {{ ride.track.join("->") }} - {{ "celkem lidí " + ride.People.length }}
+    {{ "Svoz " + (index + 1) }} - {{ ride.day }} - {{ ride.startTime }} - {{ ride.track.join("->") }} - {{ "celkem lidí"
+      + ride.People.length }}
     <div v-for="value in ride.People">{{ value }}</div>
   </div>
 </template>
