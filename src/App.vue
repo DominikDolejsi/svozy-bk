@@ -31,8 +31,7 @@ let employeeTableData: Employee[] = [];
 let rawShiftTableData: string[][] = [];
 let shiftEmployeeData: ShiftEmployee[] = [];
 let joinedTableData: JoinedTableEmployee[] = [];
-let rawRideData: RawRides[] = []
-const workShifts: WorkShift[] = [];
+let rawRideData: RawRide[] = []
 const rides = ref<Ride[]>([]);
 
 // const parseJoinedData = (joinedData: JoinedTableEmployee[]) => {};
@@ -69,22 +68,21 @@ type Ride = {
     track: Track;
     startTime: string;
     endTime: string;
-    People: JoinedTableEmployee[];
+    people: JoinedTableEmployee[];
     notes: string;
 };
 
 type Track = Town[] & string[];
-
-
-
 
 const createRides = () => {
   rawRideData.forEach((rawRide) => {
     console.log("rawRide",rawRide)
     const tracks = resolveTracks(rawRide.towns)
 
-    tracks.forEach((track) => {
-      const people = rawRide.people.filter((employee) => track.includes(employee.town.toUpperCase() as Town))
+    if (!tracks) return
+
+    tracks.forEach((track: Town[]) => {
+      const people = rawRide.people.filter((employee: JoinedTableEmployee) => track.includes(employee.town.toUpperCase() as Town))
 
       const ride: Ride = {
         day: rawRide.day,
@@ -376,7 +374,7 @@ const logIt = () => {
     <div v-for="(ride, index) in rides">
         {{ "Svoz " + (index + 1) }} - {{ ride.day }} - {{ ride.startTime }} -
         {{ ride.track.join("->") }} - {{ "celkem lidí " + ride.people.length }}
-        <div v-for="value in ride.People">{{ value }}</div>
+        <div v-for="value in ride.people">{{ value }}</div>
     </div>
 </template>
 
