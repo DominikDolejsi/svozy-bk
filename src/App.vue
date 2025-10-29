@@ -373,7 +373,7 @@ const logIt = () => {
     <div v-for="(ride, index) in rides">
         {{ "Svoz " + (index + 1) }} - {{ ride.day }} - {{ ride.startTime }} -
         {{ ride.track.join("->") }} - {{ "celkem lidí " + ride.people.length }}
-        <div v-for="value in ride.people">{{ value }}</div>
+        <div v-for="value in ride.people">{{ value.name }}</div>
     </div>
 </template>
 
