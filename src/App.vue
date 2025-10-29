@@ -10,6 +10,7 @@ import {
     type ShiftEmployee,
     type Town,
     type WorkShift,
+    type RawRide
 } from "./types";
 import type { ParseResult } from "papaparse";
 import {
@@ -19,6 +20,7 @@ import {
     isAllowedShiftTime,
     joinTableData,
     parseWhatsAppValue,
+    createRawRides,
 } from "./utils";
 
 const error = ref<string>("");
@@ -29,6 +31,7 @@ let employeeTableData: Employee[] = [];
 let rawShiftTableData: string[][] = [];
 let shiftEmployeeData: ShiftEmployee[] = [];
 let joinedTableData: JoinedTableEmployee[] = [];
+let rawRideData: RawRides[] = []
 const workShifts: WorkShift[] = [];
 const rides = ref<Ride[]>([]);
 
@@ -47,17 +50,17 @@ const townConfig: TownConfig[] = [
     },
     {
         name: "PÍSEK",
-        canConnectTo: ["MÍROVICE", "STRAKONICE"],
+        canConnectTo: ["MIROVICE", "STRAKONICE"],
         dependent: false,
     },
     {
-        name: "MÍROVICE",
+        name: "MIROVICE",
         canConnectTo: ["PŘÍBRAM", "PÍSEK"],
         dependent: true,
     },
     {
         name: "PŘÍBRAM",
-        canConnectTo: ["MÍROVICE"],
+        canConnectTo: ["MIROVICE"],
     },
 ];
 
@@ -66,56 +69,44 @@ type Ride = {
     track: Track;
     startTime: string;
     endTime: string;
-    People: string[];
+    People: JoinedTableEmployee[];
     notes: string;
 };
 
 type Track = Town[] & string[];
 
+
+
+
 const createRides = () => {
-    workShifts.forEach((workShift) => {
-        const tracks = resolveTracks(workShift.towns);
-        if (!tracks) return;
+  rawRideData.forEach((rawRide) => {
+    console.log("rawRide",rawRide)
+    const tracks = resolveTracks(rawRide.towns)
 
-        tracks.forEach((track) => {
-            // handle tracks
-            // change start time
+    tracks.forEach((track) => {
+      const people = rawRide.people.filter((employee) => track.includes(employee.town.toUpperCase() as Town))
 
-            const peopleInWorkShift = joinedTableData.filter((item) =>
-                workShift.workers.includes(item.name),
-            );
-            const peopleInTrack = peopleInWorkShift.filter((item) =>
-                track.includes(item.town),
-            );
-            const peopleNames = peopleInTrack.map((item) => item.name);
-            console.log("peopleInWorkShift", peopleInWorkShift);
-            console.log("peopleInTrack", peopleInTrack);
-            console.log("peopleNames", peopleNames);
+      const ride: Ride = {
+        day: rawRide.day,
+        startTime: rawRide.time,
+        endTime: rawRide.time,
+        people: people,
+        track: track,
+        notes: ""
+      }
 
-            const peopleBranch = peopleInTrack.map((item) => item.shiftBranch);
+      console.log("ride", ride)
 
-            peopleBranch.forEach((branch) => {
-                if (track.includes(branch)) return;
-                track.push(branch);
-            });
+      rides.value.push(ride)
+    })
 
-            const Ride: Ride = {
-                day: workShift.day,
-                startTime: workShift.time,
-                endTime: workShift.time,
-                People: peopleNames,
-                track: track,
-                notes: "",
-            };
-            rides.value.push(Ride);
-        });
-    });
-    console.log("Rides", rides);
+  })
 };
 
 const resolveTracks = (townPool: Town[]): Track[] | void => {
     const townPoolCopy = [...townPool];
     const tracks: Track[] = [];
+
     if (townPoolCopy.length === 0) return;
 
     if (townPoolCopy.length > townConfig.length) {
@@ -136,7 +127,7 @@ const resolveTracks = (townPool: Town[]): Track[] | void => {
         const track: Town[] = [];
         if (townIndex === -1) return;
 
-        const town = townPoolCopy.splice(townIndex)[0];
+        const town = townPoolCopy.splice(townIndex, 1)[0];
         track.push(town!);
 
         for (let index = 0; index < canConnectTo.length; index++) {
@@ -145,15 +136,14 @@ const resolveTracks = (townPool: Town[]): Track[] | void => {
 
             const connectTownIndex = townPoolCopy.indexOf(element);
             if (connectTownIndex === -1) continue;
-            const connectTown = townPoolCopy.splice(townIndex)[0];
+            const connectTown = townPoolCopy.splice(connectTownIndex, 1)[0];
             track.push(connectTown!);
 
             break;
         }
 
-        console.log("track", track);
+        if (track.length < 2) return;
 
-        if (tracks.length < 2) return;
         tracks.push(track);
     });
 
@@ -163,7 +153,7 @@ const resolveTracks = (townPool: Town[]): Track[] | void => {
         const track: Town[] = [];
         if (townIndex === -1) return;
 
-        const town = townPoolCopy.splice(townIndex)[0];
+        const town = townPoolCopy.splice(townIndex, 1)[0];
         track.push(town!);
 
         for (let index = 0; index < canConnectTo.length; index++) {
@@ -172,7 +162,7 @@ const resolveTracks = (townPool: Town[]): Track[] | void => {
 
             const connectTownIndex = townPoolCopy.indexOf(element);
             if (connectTownIndex === -1) continue;
-            const connectTown = townPoolCopy.splice(townIndex)[0];
+            const connectTown = townPoolCopy.splice(connectTownIndex, 1)[0];
             track.push(connectTown!);
 
             break;
@@ -345,12 +335,17 @@ const handleJoin = () => {
     joinedTableData = joinTableData(shiftEmployeeData, employeeTableData);
 };
 
+const handleRawRides = () => {
+  rawRideData = createRawRides(joinedTableData)
+}
+
 const logIt = () => {
     const data: Record<string, any> = {
         employeeTableData: employeeTableData,
         rawShiftTableData: rawShiftTableData,
         shiftEmployeeData: shiftEmployeeData,
         joinedTableData: joinedTableData,
+        rawRideData: rawRideData,
     };
 
     Object.keys(data).forEach((key) => console.log(`${key}`, data[key]));
@@ -374,12 +369,13 @@ const logIt = () => {
     />
     <!-- <button @click="createRides">Calculate</button> -->
     <button @click="handleJoin">Join</button>
-    <button @click="createRides">Create RIdes</button>
+    <button @click="handleRawRides">Create Raw Rides</button>
+    <button @click="createRides">Create Rides</button>
     <button @click="logIt">Log It</button>
     <div>{{ error }}</div>
     <div v-for="(ride, index) in rides">
         {{ "Svoz " + (index + 1) }} - {{ ride.day }} - {{ ride.startTime }} -
-        {{ ride.track.join("->") }} - {{ "celkem lidí" + ride.People.length }}
+        {{ ride.track.join("->") }} - {{ "celkem lidí " + ride.people.length }}
         <div v-for="value in ride.People">{{ value }}</div>
     </div>
 </template>
