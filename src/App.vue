@@ -9,7 +9,6 @@ import {
     type Shift,
     type ShiftEmployee,
     type Town,
-    type WorkShift,
     type RawRide
 } from "./types";
 import type { ParseResult } from "papaparse";
