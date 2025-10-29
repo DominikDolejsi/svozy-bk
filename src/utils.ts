@@ -1,5 +1,14 @@
 import Papa, { type ParseResult } from "papaparse";
-import { BRANCH, SHIFT_TIME, TABLE_IDENTIFICATORS, TOWN, type Branch, type Employee, type JoinedTableEmployee, type ShiftEmployee, type Town } from "./types";
+import {
+  type Branch,
+  type Employee,
+  type JoinedTableEmployee,
+  SHIFT_TIME,
+  type ShiftEmployee,
+  TABLE_IDENTIFICATORS,
+  TOWN,
+  type Town,
+} from "./types.ts";
 
 export const parseSVCFileToJSON = <T>(
   file: File,
@@ -13,8 +22,8 @@ export const parseSVCFileToJSON = <T>(
         console.log("Papa results", results);
         resolve(results);
       },
-      error: (error) => {
-        reject(error)
+      error: (error: unknown) => {
+        reject(error);
       },
     });
   });
@@ -26,67 +35,80 @@ export function mapToTown(value: string): Town {
   // Validate it's actually a valid town
   if (!(normalized in TOWN)) {
     // throw new Error(`Invalid town: ${value}`);
-    console.error(`Invalid town: ${value}`)
+    console.error(`Invalid town: ${value}`);
   }
 
   return normalized;
 }
 
 export const parseWhatsAppValue = (value: string): boolean => {
-  const firstThreeLetters = value.slice(0, 2)
-  if (firstThreeLetters === "ano") return true
-  return false
-}
+  const firstThreeLetters = value.slice(0, 2);
+  if (firstThreeLetters === "ano") return true;
+  return false;
+};
 
-export const isAllowedShiftTime = (time: string, allowedTime: string[] = [SHIFT_TIME.MORNING, SHIFT_TIME.AFTERNOON]) => {
-  if (allowedTime.includes(time)) return true
-  return false
-}
+export const isAllowedShiftTime = (
+  time: string,
+  allowedTime: string[] = [SHIFT_TIME.MORNING, SHIFT_TIME.AFTERNOON],
+) => {
+  if (allowedTime.includes(time)) return true;
+  return false;
+};
 
 export const filterEmptyEmployees = (employees: any[]): Employee[] => {
   const filteredEmployees = employees.filter((employee) => {
-    const requiredFields = []
-    const emptyValues = [undefined, null, ""]
-    
-    requiredFields.push(employee["branch"])
-    requiredFields.push(employee["town"])
-    requiredFields.push(employee["name"])
+    const requiredFields = [];
+    const emptyValues = [undefined, null, ""];
 
-    const hasAnyFieldEmpty = requiredFields.some((value) => emptyValues.includes(value))
+    requiredFields.push(employee["branch"]);
+    requiredFields.push(employee["town"]);
+    requiredFields.push(employee["name"]);
 
-    if (hasAnyFieldEmpty) return false
-    return true
-  })
+    const hasAnyFieldEmpty = requiredFields.some((value) =>
+      emptyValues.includes(value)
+    );
 
-  return filteredEmployees
-}
+    if (hasAnyFieldEmpty) return false;
+    return true;
+  });
 
-export const findBranchIndexes = (table: string[][], indexIdentificator: string): number[] => {
-  const branchIndexes: number[] = []
+  return filteredEmployees;
+};
+
+export const findBranchIndexes = (
+  table: string[][],
+  _indexIdentificator: string,
+): number[] => {
+  const branchIndexes: number[] = [];
   table.forEach((line, index) => {
-    const firstCell = line[0]
+    const firstCell = line[0];
     if (firstCell?.includes(TABLE_IDENTIFICATORS.BRANCH_LINE)) {
-      branchIndexes.push(index)
+      branchIndexes.push(index);
     }
-  })
-  return branchIndexes
-}
+  });
+  return branchIndexes;
+};
 
 export const getBranchName = (branchName: string): Branch | null => {
-  if (branchName.includes("east")) return "EAST"
-  if (branchName.includes("west")) return "WEST"
-  if (branchName.includes("dt")) return "DT"
-  return null
-}
+  if (branchName.includes("east")) return "EAST";
+  if (branchName.includes("west")) return "WEST";
+  if (branchName.includes("dt")) return "DT";
+  return null;
+};
 
-export const joinTableData = (shiftEmployeeData: ShiftEmployee[], employeeTableData: Employee[]) => {
-  const joinedTableData: JoinedTableEmployee[] = []
+export const joinTableData = (
+  shiftEmployeeData: ShiftEmployee[],
+  employeeTableData: Employee[],
+) => {
+  const joinedTableData: JoinedTableEmployee[] = [];
   shiftEmployeeData.forEach((shiftEmployee) => {
-    const {name, shiftBranch, shifts} = shiftEmployee
-    const employee = employeeTableData.find((employee) => employee.name === shiftEmployee.name) 
-    
+    const { name, shiftBranch, shifts } = shiftEmployee;
+    const employee = employeeTableData.find((employee) =>
+      employee.name === shiftEmployee.name
+    );
+
     // handel error emplyoee wasnt found in emplyoee table
-    if (!employee) return
+    if (!employee) return;
 
     const joinedEmployee: JoinedTableEmployee = {
       name,
@@ -94,10 +116,10 @@ export const joinTableData = (shiftEmployeeData: ShiftEmployee[], employeeTableD
       shifts,
       town: employee?.town,
       originBranch: employee.branch,
-    }
+    };
 
-    joinedTableData.push(joinedEmployee)
-  })
+    joinedTableData.push(joinedEmployee);
+  });
 
-  return joinedTableData
-}
+  return joinedTableData;
+};
