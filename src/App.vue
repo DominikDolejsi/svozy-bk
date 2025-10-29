@@ -32,7 +32,7 @@ let joinedTableData: JoinedTableEmployee[] = [];
 const workShifts: WorkShift[] = [];
 const rides = ref<Ride[]>([]);
 
-const parseJoinedData = (joinedData: JoinedTableEmployee[]) => {};
+// const parseJoinedData = (joinedData: JoinedTableEmployee[]) => {};
 
 type TownConfig = {
     name: Town;
@@ -215,7 +215,7 @@ const parseRawShiftTableData = (rawShiftTableData: string[][]) => {
         // Handle errro branch header undefined
         if (!branchShiftHeader || branchShiftHeader.length < 1) return;
 
-        branchShift.forEach((line, lineIndex) => {
+        branchShift.forEach((line, _lineIndex) => {
             // ignore header and last line and branch denominator
             const firstCell = line[0];
 
