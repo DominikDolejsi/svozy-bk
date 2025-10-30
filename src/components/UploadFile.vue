@@ -58,6 +58,7 @@ const handleFileChange = async (event: Event) => {
   display: flex;
   flex-direction: column;
   gap: 0.6em;
+  margin: 1em;
 }
 
 .upload-input {

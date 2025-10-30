@@ -27,11 +27,32 @@ export type JoinedTableEmployee = {
   town: Town;
 } & ShiftEmployee;
 
-export type RawRide = {
+export type RawShiftRide = {
   day: string;
-  time: ShiftTime;
+  morning: RawRide;
+  afternoon: RawRide;
+};
+
+export type RawRide = {
   people: JoinedTableEmployee[];
   towns: Town[];
+};
+
+export type ShiftRide = {
+  day: string;
+  morning: Ride[];
+  afternoon: Ride[];
+};
+
+export type Ride = {
+  endTime: string;
+  startTime: string;
+  people: JoinedTableEmployee[];
+  track: string[];
+  reversedTrack: string[];
+  reversePeople: JoinedTableEmployee[];
+  notes: string;
+  reverseNotes: string;
 };
 
 export type WorkShift = {
@@ -40,6 +61,8 @@ export type WorkShift = {
   workers: string[];
   towns: Town[];
 };
+
+export type Track = Town[] & string[];
 
 export const BRANCH = {
   WEST: "West",
@@ -81,3 +104,30 @@ export const TABLE_IDENTIFICATORS = {
   BRANCH_HEADER: "jméno",
   BRANCH_IGNORE: "volná směna",
 } as const;
+
+export type TownConfig = {
+  name: Town;
+  canConnectTo: Town[];
+  dependent?: boolean;
+};
+
+export const townConfig: TownConfig[] = [
+  {
+    name: "STRAKONICE",
+    canConnectTo: ["PÍSEK"],
+  },
+  {
+    name: "PÍSEK",
+    canConnectTo: ["MIROVICE", "STRAKONICE"],
+    dependent: false,
+  },
+  {
+    name: "MIROVICE",
+    canConnectTo: ["PŘÍBRAM", "PÍSEK"],
+    dependent: true,
+  },
+  {
+    name: "PŘÍBRAM",
+    canConnectTo: ["MIROVICE"],
+  },
+];
