@@ -128,7 +128,7 @@ const logIt = () => {
     <UploadFile v-if="employeeTableData.length !== 0 && rawShiftTableData.length === 0" @data-loaded="assignShifts" @error="handleError" label-text="Nahraj tabulku se směnami"
         :scv-config="shiftConfig" />
     <!-- <button @click="createRides">Calculate</button> -->
-    <button @click="calculateRides">Vypočítej svozy</button>
+    <button @click="calculateRides" :disabled="shiftEmployeeData.length === 0">Vypočítej svozy</button>
     <div>{{ error }}</div>
     <RidesTable v-if="shiftRides" :shift-rides="shiftRides"/>
 </template>
